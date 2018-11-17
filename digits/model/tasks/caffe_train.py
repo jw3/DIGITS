@@ -216,6 +216,8 @@ class CaffeTrainTask(TrainTask):
 
         if isinstance(self.job, digits.model.images.classification.ImageClassificationModelJob):
             self.save_files_classification()
+        elif isinstance(self.job, digits.model.images.detection.ImageObjectDetectionModelJob):
+            self.save_files_generic()
         elif isinstance(self.job, digits.model.images.generic.GenericImageModelJob):
             self.save_files_generic()
         else:

@@ -12,7 +12,7 @@ from digits import utils
 from digits.utils.forms import validate_required_iff, validate_greater_than
 
 
-class ImageClassificationDatasetForm(ImageDatasetForm):
+class ObjectDetectionDatasetForm(ImageDatasetForm):
     """
     Defines the form used to create a new ObjectDetectionDatasetJob
     """

@@ -2,11 +2,13 @@
 from __future__ import absolute_import
 
 from .classification import ImageClassificationModelJob
+from .detection import ImageObjectDetectionModelJob
 from .generic import GenericImageModelJob
 from .job import ImageModelJob
 
 __all__ = [
     'ImageClassificationModelJob',
+    'ImageObjectDetectionModelJob',
     'GenericImageModelJob',
     'ImageModelJob',
 ]

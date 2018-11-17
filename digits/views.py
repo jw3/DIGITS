@@ -59,6 +59,11 @@ def home(tab=2):
                     'url': flask.url_for(
                         'digits.dataset.images.classification.views.new'),
                 },
+                'image-object-detection': {
+                    'title': 'Object Detection',
+                    'url': flask.url_for(
+                        'digits.dataset.images.detection.views.new'),
+                },
                 'image-other': {
                     'title': 'Other',
                     'url': flask.url_for(
@@ -73,6 +78,11 @@ def home(tab=2):
                     'title': 'Classification',
                     'url': flask.url_for(
                         'digits.model.images.classification.views.new'),
+                },
+                'image-object-detection': {
+                    'title': 'Object Detection',
+                    'url': flask.url_for(
+                        'digits.model.images.detection.views.new'),
                 },
                 'image-other': {
                     'title': 'Other',
@@ -595,10 +605,14 @@ def clone_job(clone):
             flask.url_for('digits.dataset.generic.views.new', extension_id=job.extension_id) + '?clone=' + clone)
     if isinstance(job, dataset.ImageClassificationDatasetJob):
         return flask.redirect(flask.url_for('digits.dataset.images.classification.views.new') + '?clone=' + clone)
+    if isinstance(job, dataset.ObjectDetectionDatasetJob):
+        return flask.redirect(flask.url_for('digits.dataset.images.detection.views.new') + '?clone=' + clone)
     if isinstance(job, dataset.GenericImageDatasetJob):
         return flask.redirect(flask.url_for('digits.dataset.images.generic.views.new') + '?clone=' + clone)
     if isinstance(job, model.ImageClassificationModelJob):
         return flask.redirect(flask.url_for('digits.model.images.classification.views.new') + '?clone=' + clone)
+    if isinstance(job, model.ImageObjectDetectionModelJob):
+        return flask.redirect(flask.url_for('digits.model.images.detection.views.new') + '?clone=' + clone)
     if isinstance(job, model.GenericImageModelJob):
         return flask.redirect(flask.url_for('digits.model.images.generic.views.new') + '?clone=' + clone)
     else:

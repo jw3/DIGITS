@@ -33,6 +33,8 @@ def show(job_id):
     else:
         if isinstance(job, dataset_images.ImageClassificationDatasetJob):
             return dataset_images.classification.views.show(job, related_jobs=related_jobs)
+        elif isinstance(job, dataset_images.ObjectDetectionDatasetJob):
+            return dataset_images.detection.views.show(job, related_jobs=related_jobs)
         elif isinstance(job, dataset_images.GenericImageDatasetJob):
             return dataset_images.generic.views.show(job, related_jobs=related_jobs)
         elif isinstance(job, generic.GenericDatasetJob):

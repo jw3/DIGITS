@@ -44,6 +44,8 @@ def show(job_id):
     else:
         if isinstance(job, model_images.ImageClassificationModelJob):
             return model_images.classification.views.show(job, related_jobs=related_jobs)
+        if isinstance(job, model_images.ImageObjectDetectionModelJob):
+            return model_images.detection.views.show(job, related_jobs=related_jobs)
         elif isinstance(job, model_images.GenericImageModelJob):
             return model_images.generic.views.show(job, related_jobs=related_jobs)
         else:

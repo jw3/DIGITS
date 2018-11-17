@@ -61,6 +61,9 @@ app.register_blueprint(digits.dataset.images.views.blueprint,
 import digits.dataset.images.classification.views  # noqa
 app.register_blueprint(digits.dataset.images.classification.views.blueprint,
                        url_prefix=url_prefix+'/datasets/images/classification')
+import digits.dataset.images.detection.views  # noqa
+app.register_blueprint(digits.dataset.images.detection.views.blueprint,
+                       url_prefix=url_prefix+'/datasets/images/detection')
 import digits.dataset.images.generic.views  # noqa
 app.register_blueprint(digits.dataset.images.generic.views.blueprint,
                        url_prefix=url_prefix+'/datasets/images/generic')
@@ -73,6 +76,9 @@ app.register_blueprint(digits.model.images.views.blueprint,
 import digits.model.images.classification.views  # noqa
 app.register_blueprint(digits.model.images.classification.views.blueprint,
                        url_prefix=url_prefix+'/models/images/classification')
+import digits.model.images.detection.views  # noqa
+app.register_blueprint(digits.model.images.detection.views.blueprint,
+                       url_prefix=url_prefix+'/models/images/detection')
 import digits.model.images.generic.views  # noqa
 app.register_blueprint(digits.model.images.generic.views.blueprint,
                        url_prefix=url_prefix+'/models/images/generic')
