@@ -7,131 +7,481 @@ from wtforms import validators
 
 from digits import utils
 from digits.utils import subclass
-from digits.utils.forms import validate_required_if_set
+import os.path
+import requests
+
+import wtforms
+from wtforms import validators
+
+from digits import utils
+from digits.utils.forms import validate_required_iff, validate_greater_than
 
 
 @subclass
 class DatasetForm(Form):
     """
-    A form used to create an image processing dataset
-    """
+     Defines the form used to create a new ObjectDetectionDatasetJob
+     """
+
+    # Image resize
+
+    resize_channels = utils.forms.SelectField(
+        u'Image Type',
+        default='3',
+        choices=[('1', 'Grayscale'), ('3', 'Color')],
+        tooltip="Color is 3-channel RGB. Grayscale is single channel monochrome."
+    )
+    resize_width = wtforms.IntegerField(
+        u'Resize Width',
+        default=256,
+        validators=[validators.DataRequired()]
+    )
+    resize_height = wtforms.IntegerField(
+        u'Resize Height',
+        default=256,
+        validators=[validators.DataRequired()]
+    )
+    resize_mode = utils.forms.SelectField(
+        u'Resize Transformation',
+        default='squash',
+        choices=[
+            ('crop', 'Crop'),
+            ('squash', 'Squash'),
+            ('fill', 'Fill'),
+            ('half_crop', 'Half crop, half fill'),
+        ],
+        tooltip="Options for dealing with aspect ratio changes during resize. See examples below."
+    )
+
+    backend = wtforms.SelectField('DB backend',
+                                  choices=[
+                                      ('lmdb', 'LMDB'),
+                                      ('hdf5', 'HDF5')
+                                  ],
+                                  default='lmdb',
+                                  )
+
+    def validate_backend(form, field):
+        if field.data == 'lmdb':
+            form.compression.data = 'none'
+        elif field.data == 'tfrecords':
+            form.compression.data = 'none'
+        elif field.data == 'hdf5':
+            form.encoding.data = 'none'
+
+    compression = utils.forms.SelectField(
+        'DB compression',
+        choices=[
+            ('none', 'None'),
+            ('gzip', 'GZIP'),
+        ],
+        default='none',
+        tooltip=('Compressing the dataset may significantly decrease the size '
+                 'of your database files, but it may increase read and write times.'),
+    )
+
+    # Use a SelectField instead of a HiddenField so that the default value
+    # is used when nothing is provided (through the REST API)
+    method = wtforms.SelectField(u'Dataset type',
+                                 choices=[
+                                     ('folder', 'Folder'),
+                                     ('textfile', 'Textfiles'),
+                                     ('s3', 'S3'),
+                                 ],
+                                 default='folder',
+                                 )
 
     def validate_folder_path(form, field):
         if not field.data:
             pass
+        elif utils.is_url(field.data):
+            # make sure the URL exists
+            try:
+                r = requests.get(field.data,
+                                 allow_redirects=False,
+                                 timeout=utils.HTTP_TIMEOUT)
+                if r.status_code not in [requests.codes.ok, requests.codes.moved, requests.codes.found]:
+                    raise validators.ValidationError('URL not found')
+            except Exception as e:
+                raise validators.ValidationError('Caught %s while checking URL: %s' % (type(e).__name__, e))
+            else:
+                return True
         else:
             # make sure the filesystem path exists
+            # and make sure the filesystem path is absolute
             if not os.path.exists(field.data) or not os.path.isdir(field.data):
-                raise validators.ValidationError('Folder does not exist or is not reachable')
+                raise validators.ValidationError('Folder does not exist')
+            elif not os.path.isabs(field.data):
+                raise validators.ValidationError('Filesystem path is not absolute')
             else:
                 return True
 
-    train_image_folder = utils.forms.StringField(
-        u'Training image folder',
+    #
+    # Method - folder
+    #
+
+    folder_train = utils.forms.StringField(
+        u'Training Images',
         validators=[
-            validators.DataRequired(),
+            validate_required_iff(method='folder'),
             validate_folder_path,
         ],
-        tooltip="Indicate a folder of images to use for training"
+        tooltip=('Indicate a folder which holds subfolders full of images. '
+                 'Each subfolder should be named according to the desired label for the images that it holds. '
+                 'Can also be a URL for an apache/nginx auto-indexed folder.'),
     )
 
-    train_label_folder = utils.forms.StringField(
-        u'Training label folder',
+    folder_pct_val = utils.forms.IntegerField(
+        u'% for validation',
+        default=25,
         validators=[
-            validators.DataRequired(),
-            validate_folder_path,
+            validate_required_iff(method='folder'),
+            validators.NumberRange(min=0, max=100)
         ],
-        tooltip="Indicate a folder of training labels"
+        tooltip=('You can choose to set apart a certain percentage of images '
+                 'from the training images for the validation set.'),
     )
 
-    val_image_folder = utils.forms.StringField(
-        u'Validation image folder',
+    folder_pct_test = utils.forms.IntegerField(
+        u'% for testing',
+        default=0,
         validators=[
-            validate_required_if_set('val_label_folder'),
-            validate_folder_path,
+            validate_required_iff(method='folder'),
+            validators.NumberRange(min=0, max=100)
         ],
-        tooltip="Indicate a folder of images to use for training"
+        tooltip=('You can choose to set apart a certain percentage of images '
+                 'from the training images for the test set.'),
     )
 
-    val_label_folder = utils.forms.StringField(
-        u'Validation label folder',
-        validators=[
-            validate_required_if_set('val_image_folder'),
-            validate_folder_path,
-        ],
-        tooltip="Indicate a folder of validation labels"
-    )
-
-    resize_image_width = utils.forms.IntegerField(
-        u'Resize Image Width',
-        validators=[
-            validate_required_if_set('resize_image_height'),
-            validators.NumberRange(min=1),
-        ],
-        tooltip="If specified, images will be resized to that dimension after padding"
-    )
-
-    resize_image_height = utils.forms.IntegerField(
-        u'Resize Image Height',
-        validators=[
-            validate_required_if_set('resize_image_width'),
-            validators.NumberRange(min=1),
-        ],
-        tooltip="If specified, images will be resized to that dimension after padding"
-    )
-
-    padding_image_width = utils.forms.IntegerField(
-        u'Padding Image Width',
-        default=1248,
-        validators=[
-            validate_required_if_set('padding_image_height'),
-            validators.NumberRange(min=1),
-        ],
-        tooltip="If specified, images will be padded to that dimension"
-    )
-
-    padding_image_height = utils.forms.IntegerField(
-        u'Padding Image Height',
-        default=384,
-        validators=[
-            validate_required_if_set('padding_image_width'),
-            validators.NumberRange(min=1),
-        ],
-        tooltip="If specified, images will be padded to that dimension"
-    )
-
-    channel_conversion = utils.forms.SelectField(
-        u'Channel conversion',
-        choices=[
-            ('RGB', 'RGB'),
-            ('L', 'Grayscale'),
-            ('none', 'None'),
-        ],
-        default='RGB',
-        tooltip="Perform selected channel conversion."
-    )
-
-    val_min_box_size = utils.forms.IntegerField(
-        u'Minimum box size (in pixels) for validation set',
-        default='25',
-        validators=[
-            validators.InputRequired(),
-            validators.NumberRange(min=0),
-        ],
-        tooltip="Retain only the boxes that are larger than the specified "
-                "value in both dimensions. This only affects objects in "
-                "the validation set. Enter 0 to disable this threshold."
-    )
-
-    custom_classes = utils.forms.StringField(
-        u'Custom classes',
+    folder_train_min_per_class = utils.forms.IntegerField(
+        u'Minimum samples per class',
+        default=2,
         validators=[
             validators.Optional(),
+            validators.NumberRange(min=1),
         ],
-        tooltip="Enter a comma-separated list of class names. "
-                "Class IDs are assigned sequentially, starting from 0. "
-                "Unmapped class names automatically map to 0. "
-                "Leave this field blank to use default class mappings. "
-                "See object detection extension documentation for more "
-                "information."
+        tooltip=('You can choose to specify a minimum number of samples per class. '
+                 'If a class has fewer samples than the specified amount it will be ignored. '
+                 'Leave blank to ignore this feature.'),
+    )
+
+    folder_train_max_per_class = utils.forms.IntegerField(
+        u'Maximum samples per class',
+        validators=[
+            validators.Optional(),
+            validators.NumberRange(min=1),
+            validate_greater_than('folder_train_min_per_class'),
+        ],
+        tooltip=('You can choose to specify a maximum number of samples per class. '
+                 'If a class has more samples than the specified amount extra samples will be ignored. '
+                 'Leave blank to ignore this feature.'),
+    )
+
+    has_val_folder = wtforms.BooleanField(
+        'Separate validation images folder',
+        default=False,
+        validators=[
+            validate_required_iff(method='folder')
+        ]
+    )
+
+    folder_val = wtforms.StringField(
+        u'Validation Images',
+        validators=[
+            validate_required_iff(
+                method='folder',
+                has_val_folder=True),
+        ]
+    )
+
+    folder_val_min_per_class = utils.forms.IntegerField(
+        u'Minimum samples per class',
+        default=2,
+        validators=[
+            validators.Optional(),
+            validators.NumberRange(min=1),
+        ],
+        tooltip=('You can choose to specify a minimum number of samples per class. '
+                 'If a class has fewer samples than the specified amount it will be ignored. '
+                 'Leave blank to ignore this feature.'),
+    )
+
+    folder_val_max_per_class = utils.forms.IntegerField(
+        u'Maximum samples per class',
+        validators=[
+            validators.Optional(),
+            validators.NumberRange(min=1),
+            validate_greater_than('folder_val_min_per_class'),
+        ],
+        tooltip=('You can choose to specify a maximum number of samples per class. '
+                 'If a class has more samples than the specified amount extra samples will be ignored. '
+                 'Leave blank to ignore this feature.'),
+    )
+
+    has_test_folder = wtforms.BooleanField(
+        'Separate test images folder',
+        default=False,
+        validators=[
+            validate_required_iff(method='folder')
+        ]
+    )
+
+    folder_test = wtforms.StringField(
+        u'Test Images',
+        validators=[
+            validate_required_iff(
+                method='folder',
+                has_test_folder=True),
+            validate_folder_path,
+        ]
+    )
+
+    folder_test_min_per_class = utils.forms.IntegerField(
+        u'Minimum samples per class',
+        default=2,
+        validators=[
+            validators.Optional(),
+            validators.NumberRange(min=1)
+        ],
+        tooltip=('You can choose to specify a minimum number of samples per class. '
+                 'If a class has fewer samples than the specified amount it will be ignored. '
+                 'Leave blank to ignore this feature.'),
+    )
+
+    folder_test_max_per_class = utils.forms.IntegerField(
+        u'Maximum samples per class',
+        validators=[
+            validators.Optional(),
+            validators.NumberRange(min=1),
+            validate_greater_than('folder_test_min_per_class'),
+        ],
+        tooltip=('You can choose to specify a maximum number of samples per class. '
+                 'If a class has more samples than the specified amount extra samples will be ignored. '
+                 'Leave blank to ignore this feature.'),
+    )
+
+    #
+    # Method - textfile
+    #
+
+    textfile_use_local_files = wtforms.BooleanField(
+        u'Use local files',
+        default=False,
+    )
+
+    textfile_train_images = utils.forms.FileField(
+        u'Training images',
+        validators=[
+            validate_required_iff(method='textfile',
+                                  textfile_use_local_files=False)
+        ]
+    )
+
+    textfile_local_train_images = wtforms.StringField(
+        u'Training images',
+        validators=[
+            validate_required_iff(method='textfile',
+                                  textfile_use_local_files=True)
+        ]
+    )
+
+    textfile_train_folder = wtforms.StringField(u'Training images folder')
+
+    def validate_textfile_train_folder(form, field):
+        if form.method.data != 'textfile':
+            field.errors[:] = []
+            raise validators.StopValidation()
+        if not field.data.strip():
+            # allow null
+            return True
+        if not os.path.exists(field.data) or not os.path.isdir(field.data):
+            raise validators.ValidationError('folder does not exist')
+        return True
+
+    textfile_use_val = wtforms.BooleanField(u'Validation set',
+                                            default=True,
+                                            validators=[
+                                                validate_required_iff(method='textfile')
+                                            ]
+                                            )
+    textfile_val_images = utils.forms.FileField(u'Validation images',
+                                                validators=[
+                                                    validate_required_iff(
+                                                        method='textfile',
+                                                        textfile_use_val=True,
+                                                        textfile_use_local_files=False)
+                                                ]
+                                                )
+    textfile_local_val_images = wtforms.StringField(u'Validation images',
+                                                    validators=[
+                                                        validate_required_iff(
+                                                            method='textfile',
+                                                            textfile_use_val=True,
+                                                            textfile_use_local_files=True)
+                                                    ]
+                                                    )
+    textfile_val_folder = wtforms.StringField(u'Validation images folder')
+
+    def validate_textfile_val_folder(form, field):
+        if form.method.data != 'textfile' or not form.textfile_use_val.data:
+            field.errors[:] = []
+            raise validators.StopValidation()
+        if not field.data.strip():
+            # allow null
+            return True
+        if not os.path.exists(field.data) or not os.path.isdir(field.data):
+            raise validators.ValidationError('folder does not exist')
+        return True
+
+    textfile_use_test = wtforms.BooleanField(u'Test set',
+                                             default=False,
+                                             validators=[
+                                                 validate_required_iff(method='textfile')
+                                             ]
+                                             )
+    textfile_test_images = utils.forms.FileField(u'Test images',
+                                                 validators=[
+                                                     validate_required_iff(
+                                                         method='textfile',
+                                                         textfile_use_test=True,
+                                                         textfile_use_local_files=False)
+                                                 ]
+                                                 )
+    textfile_local_test_images = wtforms.StringField(u'Test images',
+                                                     validators=[
+                                                         validate_required_iff(
+                                                             method='textfile',
+                                                             textfile_use_test=True,
+                                                             textfile_use_local_files=True)
+                                                     ]
+                                                     )
+    textfile_test_folder = wtforms.StringField(u'Test images folder')
+
+    def validate_textfile_test_folder(form, field):
+        if form.method.data != 'textfile' or not form.textfile_use_test.data:
+            field.errors[:] = []
+            raise validators.StopValidation()
+        if not field.data.strip():
+            # allow null
+            return True
+        if not os.path.exists(field.data) or not os.path.isdir(field.data):
+            raise validators.ValidationError('folder does not exist')
+        return True
+
+    # Can't use a BooleanField here because HTML doesn't submit anything
+    # for an unchecked checkbox. Since we want to use a REST API and have
+    # this default to True when nothing is supplied, we have to use a
+    # SelectField
+    textfile_shuffle = utils.forms.SelectField(
+        'Shuffle lines',
+        choices=[
+            (1, 'Yes'),
+            (0, 'No'),
+        ],
+        coerce=int,
+        default=1,
+        tooltip="Shuffle the list[s] of images before creating the database."
+    )
+
+    textfile_labels_file = utils.forms.FileField(
+        u'Labels',
+        validators=[
+            validate_required_iff(method='textfile',
+                                  textfile_use_local_files=False)
+        ],
+        tooltip=("The 'i'th line of the file should give the string label "
+                 "associated with the '(i-1)'th numeric label. (E.g. the string label "
+                 "for the numeric label 0 is supposed to be on line 1.)"),
+    )
+
+    textfile_local_labels_file = utils.forms.StringField(
+        u'Labels',
+        validators=[
+            validate_required_iff(method='textfile',
+                                  textfile_use_local_files=True)
+        ],
+        tooltip=("The 'i'th line of the file should give the string label "
+                 "associated with the '(i-1)'th numeric label. (E.g. the string label "
+                 "for the numeric label 0 is supposed to be on line 1.)"),
+    )
+
+    #
+    # Method - S3
+    #
+
+    s3_endpoint_url = utils.forms.StringField(
+        u'Training Images',
+        tooltip=('S3 end point URL'),
+    )
+
+    s3_bucket = utils.forms.StringField(
+        u'Bucket Name',
+        tooltip=('bucket name'),
+    )
+
+    s3_path = utils.forms.StringField(
+        u'Training Images Path',
+        tooltip=('Indicate a path which holds subfolders full of images. '
+                 'Each subfolder should be named according to the desired label for the images that it holds. '),
+    )
+
+    s3_accesskey = utils.forms.StringField(
+        u'Access Key',
+        tooltip=('Access Key to access this S3 End Point'),
+    )
+
+    s3_secretkey = utils.forms.StringField(
+        u'Secret Key',
+        tooltip=('Secret Key to access this S3 End Point'),
+    )
+
+    s3_keepcopiesondisk = utils.forms.BooleanField(
+        u'Keep Copies of Files on Disk',
+        tooltip=('Checking this box will keep raw files retrieved from S3 stored on disk after the job is completed'),
+    )
+
+    s3_pct_val = utils.forms.IntegerField(
+        u'% for validation',
+        default=25,
+        validators=[
+            validate_required_iff(method='s3'),
+            validators.NumberRange(min=0, max=100)
+        ],
+        tooltip=('You can choose to set apart a certain percentage of images '
+                 'from the training images for the validation set.'),
+    )
+
+    s3_pct_test = utils.forms.IntegerField(
+        u'% for testing',
+        default=0,
+        validators=[
+            validate_required_iff(method='s3'),
+            validators.NumberRange(min=0, max=100)
+        ],
+        tooltip=('You can choose to set apart a certain percentage of images '
+                 'from the training images for the test set.'),
+    )
+
+    s3_train_min_per_class = utils.forms.IntegerField(
+        u'Minimum samples per class',
+        default=2,
+        validators=[
+            validators.Optional(),
+            validators.NumberRange(min=1),
+        ],
+        tooltip=('You can choose to specify a minimum number of samples per class. '
+                 'If a class has fewer samples than the specified amount it will be ignored. '
+                 'Leave blank to ignore this feature.'),
+    )
+
+    s3_train_max_per_class = utils.forms.IntegerField(
+        u'Maximum samples per class',
+        validators=[
+            validators.Optional(),
+            validators.NumberRange(min=1),
+            validate_greater_than('s3_train_min_per_class'),
+        ],
+        tooltip=('You can choose to specify a maximum number of samples per class. '
+                 'If a class has more samples than the specified amount extra samples will be ignored. '
+                 'Leave blank to ignore this feature.'),
     )
