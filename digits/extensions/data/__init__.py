@@ -6,7 +6,6 @@ from pkg_resources import iter_entry_points
 
 from . import imageProcessing
 from . import imageSegmentation
-from . import objectDetection
 
 # Entry point group (this is the key we use to register and
 # find installed plug-ins)
@@ -16,7 +15,6 @@ GROUP = "digits.plugins.data"
 builtin_data_extensions = [
     imageProcessing.DataIngestion,
     imageSegmentation.DataIngestion,
-    objectDetection.DataIngestion,
 ]
 
 

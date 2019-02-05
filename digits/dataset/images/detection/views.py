@@ -367,6 +367,8 @@ def new():
     """
     form = ObjectDetectionDatasetForm()
 
+    print("==================here=================")
+
     # Is there a request to clone a job with ?clone=<job_id>
     fill_form_if_cloned(form)
 
