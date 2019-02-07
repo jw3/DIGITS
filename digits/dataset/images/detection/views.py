@@ -35,24 +35,24 @@ def from_folders(job, form):
 
     # Add ParseFolderTask
 
-    percent_val = form.folder_pct_val.data
-    val_parents = []
-    if form.has_val_folder.data:
-        percent_val = 0
+    # percent_val = form.folder_pct_val.data
+    # val_parents = []
+    # if form.has_val_folder.data:
+    #     percent_val = 0
+    #
+    # percent_test = form.folder_pct_test.data
+    # test_parents = []
+    # if form.has_test_folder.data:
+    #     percent_test = 0
 
-    percent_test = form.folder_pct_test.data
-    test_parents = []
-    if form.has_test_folder.data:
-        percent_test = 0
-
-    min_per_class = form.folder_train_min_per_class.data
-    max_per_class = form.folder_train_max_per_class.data
+    # min_per_class = form.folder_train_min_per_class.data
+    # max_per_class = form.folder_train_max_per_class.data
 
     parse_train_task = tasks.ParseFolderTask(
         job_dir=job.dir(),
         folder=form.folder_train.data,
-        percent_val=percent_val,
-        percent_test=percent_test,
+        percent_val=90,
+        percent_test=10,
         min_per_category=min_per_class if min_per_class > 0 else 1,
         max_per_category=max_per_class if max_per_class > 0 else None
     )
@@ -118,150 +118,148 @@ def from_folders(job, form):
         )
     )
 
-    if percent_val > 0 or form.has_val_folder.data:
-        job.tasks.append(
-            tasks.CreateDbTask(
-                job_dir=job.dir(),
-                parents=val_parents,
-                input_file=utils.constants.VAL_FILE,
-                db_name=utils.constants.VAL_DB,
-                backend=backend,
-                image_dims=job.image_dims,
-                resize_mode=job.resize_mode,
-                encoding=encoding,
-                compression=compression,
-                labels_file=job.labels_file,
-            )
+    job.tasks.append(
+        tasks.CreateDbTask(
+            job_dir=job.dir(),
+            parents=val_parents,
+            input_file=utils.constants.VAL_FILE,
+            db_name=utils.constants.VAL_DB,
+            backend=backend,
+            image_dims=job.image_dims,
+            resize_mode=job.resize_mode,
+            encoding=encoding,
+            compression=compression,
+            labels_file=job.labels_file,
         )
-
-    if percent_test > 0 or form.has_test_folder.data:
-        job.tasks.append(
-            tasks.CreateDbTask(
-                job_dir=job.dir(),
-                parents=test_parents,
-                input_file=utils.constants.TEST_FILE,
-                db_name=utils.constants.TEST_DB,
-                backend=backend,
-                image_dims=job.image_dims,
-                resize_mode=job.resize_mode,
-                encoding=encoding,
-                compression=compression,
-                labels_file=job.labels_file,
-            )
-        )
-
-
-def from_files(job, form):
-    """
-    Add tasks for creating a dataset by reading textfiles
-    """
-    # labels
-    if form.textfile_use_local_files.data:
-        labels_file_from = form.textfile_local_labels_file.data.strip()
-        labels_file_to = os.path.join(job.dir(), utils.constants.LABELS_FILE)
-        shutil.copyfile(labels_file_from, labels_file_to)
-    else:
-        flask.request.files[form.textfile_labels_file.name].save(
-            os.path.join(job.dir(), utils.constants.LABELS_FILE)
-        )
-    job.labels_file = utils.constants.LABELS_FILE
-
-    shuffle = bool(form.textfile_shuffle.data)
-    backend = form.backend.data
-    encoding = form.encoding.data
-    compression = form.compression.data
-
-    # train
-    if form.textfile_use_local_files.data:
-        train_file = form.textfile_local_train_images.data.strip()
-    else:
-        flask.request.files[form.textfile_train_images.name].save(
-            os.path.join(job.dir(), utils.constants.TRAIN_FILE)
-        )
-        train_file = utils.constants.TRAIN_FILE
-
-    image_folder = form.textfile_train_folder.data.strip()
-    if not image_folder:
-        image_folder = None
+    )
 
     job.tasks.append(
         tasks.CreateDbTask(
             job_dir=job.dir(),
-            input_file=train_file,
-            db_name=utils.constants.TRAIN_DB,
+            parents=test_parents,
+            input_file=utils.constants.TEST_FILE,
+            db_name=utils.constants.TEST_DB,
             backend=backend,
             image_dims=job.image_dims,
-            image_folder=image_folder,
             resize_mode=job.resize_mode,
             encoding=encoding,
             compression=compression,
-            mean_file=utils.constants.MEAN_FILE_CAFFE,
             labels_file=job.labels_file,
-            shuffle=shuffle,
         )
     )
 
-    # val
-
-    if form.textfile_use_val.data:
-        if form.textfile_use_local_files.data:
-            val_file = form.textfile_local_val_images.data.strip()
-        else:
-            flask.request.files[form.textfile_val_images.name].save(
-                os.path.join(job.dir(), utils.constants.VAL_FILE)
-            )
-            val_file = utils.constants.VAL_FILE
-
-        image_folder = form.textfile_val_folder.data.strip()
-        if not image_folder:
-            image_folder = None
-
-        job.tasks.append(
-            tasks.CreateDbTask(
-                job_dir=job.dir(),
-                input_file=val_file,
-                db_name=utils.constants.VAL_DB,
-                backend=backend,
-                image_dims=job.image_dims,
-                image_folder=image_folder,
-                resize_mode=job.resize_mode,
-                encoding=encoding,
-                compression=compression,
-                labels_file=job.labels_file,
-                shuffle=shuffle,
-            )
-        )
-
-    # test
-
-    if form.textfile_use_test.data:
-        if form.textfile_use_local_files.data:
-            test_file = form.textfile_local_test_images.data.strip()
-        else:
-            flask.request.files[form.textfile_test_images.name].save(
-                os.path.join(job.dir(), utils.constants.TEST_FILE)
-            )
-            test_file = utils.constants.TEST_FILE
-
-        image_folder = form.textfile_test_folder.data.strip()
-        if not image_folder:
-            image_folder = None
-
-        job.tasks.append(
-            tasks.CreateDbTask(
-                job_dir=job.dir(),
-                input_file=test_file,
-                db_name=utils.constants.TEST_DB,
-                backend=backend,
-                image_dims=job.image_dims,
-                image_folder=image_folder,
-                resize_mode=job.resize_mode,
-                encoding=encoding,
-                compression=compression,
-                labels_file=job.labels_file,
-                shuffle=shuffle,
-            )
-        )
+#
+# def from_files(job, form):
+#     """
+#     Add tasks for creating a dataset by reading textfiles
+#     """
+#     # labels
+#     if form.textfile_use_local_files.data:
+#         labels_file_from = form.textfile_local_labels_file.data.strip()
+#         labels_file_to = os.path.join(job.dir(), utils.constants.LABELS_FILE)
+#         shutil.copyfile(labels_file_from, labels_file_to)
+#     else:
+#         flask.request.files[form.textfile_labels_file.name].save(
+#             os.path.join(job.dir(), utils.constants.LABELS_FILE)
+#         )
+#     job.labels_file = utils.constants.LABELS_FILE
+#
+#     shuffle = bool(form.textfile_shuffle.data)
+#     backend = form.backend.data
+#     encoding = form.encoding.data
+#     compression = form.compression.data
+#
+#     # train
+#     if form.textfile_use_local_files.data:
+#         train_file = form.textfile_local_train_images.data.strip()
+#     else:
+#         flask.request.files[form.textfile_train_images.name].save(
+#             os.path.join(job.dir(), utils.constants.TRAIN_FILE)
+#         )
+#         train_file = utils.constants.TRAIN_FILE
+#
+#     image_folder = form.textfile_train_folder.data.strip()
+#     if not image_folder:
+#         image_folder = None
+#
+#     job.tasks.append(
+#         tasks.CreateDbTask(
+#             job_dir=job.dir(),
+#             input_file=train_file,
+#             db_name=utils.constants.TRAIN_DB,
+#             backend=backend,
+#             image_dims=job.image_dims,
+#             image_folder=image_folder,
+#             resize_mode=job.resize_mode,
+#             encoding=encoding,
+#             compression=compression,
+#             mean_file=utils.constants.MEAN_FILE_CAFFE,
+#             labels_file=job.labels_file,
+#             shuffle=shuffle,
+#         )
+#     )
+#
+#     # val
+#
+#     if form.textfile_use_val.data:
+#         if form.textfile_use_local_files.data:
+#             val_file = form.textfile_local_val_images.data.strip()
+#         else:
+#             flask.request.files[form.textfile_val_images.name].save(
+#                 os.path.join(job.dir(), utils.constants.VAL_FILE)
+#             )
+#             val_file = utils.constants.VAL_FILE
+#
+#         image_folder = form.textfile_val_folder.data.strip()
+#         if not image_folder:
+#             image_folder = None
+#
+#         job.tasks.append(
+#             tasks.CreateDbTask(
+#                 job_dir=job.dir(),
+#                 input_file=val_file,
+#                 db_name=utils.constants.VAL_DB,
+#                 backend=backend,
+#                 image_dims=job.image_dims,
+#                 image_folder=image_folder,
+#                 resize_mode=job.resize_mode,
+#                 encoding=encoding,
+#                 compression=compression,
+#                 labels_file=job.labels_file,
+#                 shuffle=shuffle,
+#             )
+#         )
+#
+#     # test
+#
+#     if form.textfile_use_test.data:
+#         if form.textfile_use_local_files.data:
+#             test_file = form.textfile_local_test_images.data.strip()
+#         else:
+#             flask.request.files[form.textfile_test_images.name].save(
+#                 os.path.join(job.dir(), utils.constants.TEST_FILE)
+#             )
+#             test_file = utils.constants.TEST_FILE
+#
+#         image_folder = form.textfile_test_folder.data.strip()
+#         if not image_folder:
+#             image_folder = None
+#
+#         job.tasks.append(
+#             tasks.CreateDbTask(
+#                 job_dir=job.dir(),
+#                 input_file=test_file,
+#                 db_name=utils.constants.TEST_DB,
+#                 backend=backend,
+#                 image_dims=job.image_dims,
+#                 image_folder=image_folder,
+#                 resize_mode=job.resize_mode,
+#                 encoding=encoding,
+#                 compression=compression,
+#                 labels_file=job.labels_file,
+#                 shuffle=shuffle,
+#             )
+#         )
 
 
 def from_s3(job, form):
@@ -366,8 +364,6 @@ def new():
     Returns a form for a new ObjectDetectionDatasetJob
     """
     form = ObjectDetectionDatasetForm()
-
-    print("==================here=================")
 
     # Is there a request to clone a job with ?clone=<job_id>
     fill_form_if_cloned(form)
